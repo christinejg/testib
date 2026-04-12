@@ -72,7 +72,7 @@ class IBApp(EWrapper, EClient):
 app_ib = IBApp()
 
 def run_ib():
-    app_ib.connect("127.0.0.1", 7497, clientId=1)
+    app_ib.connect("127.0.0.1", 4002, clientId=1)
     app_ib.run()
 
 ib_thread = threading.Thread(target=run_ib, daemon=True)
