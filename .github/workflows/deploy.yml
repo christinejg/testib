@@ -1,0 +1,25 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/testib
+            git fetch origin main
+            git reset --hard origin/main
+            pip3 install -r requirements.txt --quiet 2>/dev/null || true
+            sudo systemctl restart trading-server
+            sleep 5
+            sudo systemctl is-active trading-server && echo "✅ 部署成功" || echo "❌ 启动失败"
