@@ -5,6 +5,10 @@ from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 from ibapi.order import Order
+from ibapi.execution import ExecutionFilter
+import json, os
+
+TRADE_LOG = "/home/ec2-user/trade_history.json"
 
 FUTURES_MAP = {
     "GC1!": {"symbol": "GC", "exchange": "COMEX", "expiry": "202508", "tick": 0.10},
@@ -40,13 +44,19 @@ class IBApp(EWrapper, EClient):
         EClient.__init__(self, wrapper=self)
         self.order_id    = None
         self.connected   = False
-        # order_id → symbol，用来追踪止损单是哪个 symbol 的
         self.sl_order_map = {}
+        self._open_orders_done = False  # 新增
+        self.trade_history = []
 
     def nextValidId(self, orderId):
         self.order_id = orderId
         self.connected = True
         print(f"[IB] 已连接，Order ID: {orderId}")
+        # 连接后自动拉取持仓和挂单
+        self.reqOpenOrders()
+        self.reqPositions()
+        # 拉取今日成交历史
+        self.reqExecutions(1, ExecutionFilter())
 
     def orderStatus(self, orderId, status, filled, remaining,
                     avgFillPrice, permId, parentId, lastFillPrice,
@@ -61,16 +71,51 @@ class IBApp(EWrapper, EClient):
                 print(f"[仓位] {symbol} 止损触发，仓位已清除")
             del self.sl_order_map[orderId]
 
+    # 启动时同步挂单（找到止损单）
     def openOrder(self, orderId, contract, order, orderState):
         print(f"[IB] 订单提交 - {order.action} {order.totalQuantity} {contract.symbol}")
+        # 恢复止损单记录
+        if order.orderType == "STP" and order.action == "SELL":
+            symbol = contract.symbol
+            # 反查 FUTURES_MAP
+            for k, v in FUTURES_MAP.items():
+                if v["symbol"] == symbol:
+                    symbol = k
+                    break
+            qty = int(order.totalQuantity)
+            if symbol not in open_positions:
+                open_positions[symbol] = {
+                    "sl_order_id": orderId,
+                    "quantity": qty
+                }
+            app_ib.sl_order_map[orderId] = symbol
+            print(f"[恢复] 从IB同步止损单: {symbol} sl_id={orderId} qty={qty}")
+
+    def openOrderEnd(self):
+        self._open_orders_done = True
+        print(f"[恢复] 同步完成，当前持仓: {open_positions}")
 
     def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
         if errorCode not in [2104, 2106, 2158]:
             print(f"[IB] 错误 {errorCode}: {errorString}")
 
     def execDetails(self, reqId, contract, execution):
-        print(f"[成交] {execution.side} {execution.shares} {contract.symbol} "
-              f"@ {execution.price} 时间:{execution.time}")
+        trade = {
+            "time":     execution.time,
+            "symbol":   contract.symbol,
+            "side":     execution.side,
+            "quantity": execution.shares,
+            "price":    execution.price,
+            "execId":   execution.execId,
+            "orderId":  execution.orderId,
+        }
+        self.trade_history.append(trade)
+        with open(TRADE_LOG, "a") as f:
+        f.write(json.dumps(trade) + "\n")
+        print(f"[成交] {trade['side']} {trade['quantity']} {trade['symbol']} @ {trade['price']} {trade['time']}")
+
+    def execDetailsEnd(self, reqId):
+        print(f"[成交历史] 共 {len(self.trade_history)} 笔")
 
     def position(self, account, contract, position, avgCost):
         print(f"[持仓] {contract.symbol} {position}股 均价:{avgCost}")
@@ -233,6 +278,16 @@ def positions():
     app_ib.reqPositions()
     return jsonify({"open_positions": open_positions}), 200
 
+@flask_app.route('/trades', methods=['GET'])
+def trades():
+    history = []
+    if os.path.exists(TRADE_LOG):
+        with open(TRADE_LOG) as f:
+            history = [json.loads(line) for line in f if line.strip()]
+    return jsonify({
+        "count":  len(history),
+        "trades": history
+    }), 200
 
 if __name__ == '__main__':
     flask_app.run(host='0.0.0.0', port=5000)
