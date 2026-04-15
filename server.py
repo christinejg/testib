@@ -217,6 +217,21 @@ def health():
         "open_positions": open_positions
     }), 200
 
+def execDetails(self, reqId, contract, execution):
+    print(f"[成交] {execution.side} {execution.shares} {contract.symbol} "
+          f"@ {execution.price} 时间:{execution.time}")
+
+def position(self, account, contract, position, avgCost):
+    print(f"[持仓] {contract.symbol} {position}股 均价:{avgCost}")
+
+def positionEnd(self):
+    print("[持仓] 查询完毕")
+
+@flask_app.route('/positions', methods=['GET'])
+def positions():
+    app_ib.reqPositions()
+    return jsonify({"open_positions": open_positions}), 200
+
 
 if __name__ == '__main__':
     flask_app.run(host='0.0.0.0', port=5000)
