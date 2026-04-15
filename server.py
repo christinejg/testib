@@ -5,10 +5,6 @@ from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 from ibapi.order import Order
-from ibapi.execution import ExecutionFilter
-import json, os
-
-TRADE_LOG = "/home/ec2-user/trade_history.json"
 
 FUTURES_MAP = {
     "GC1!": {"symbol": "GC", "exchange": "COMEX", "expiry": "202508", "tick": 0.10},
@@ -44,9 +40,9 @@ class IBApp(EWrapper, EClient):
         EClient.__init__(self, wrapper=self)
         self.order_id    = None
         self.connected   = False
+        # order_id → symbol，用来追踪止损单是哪个 symbol 的
         self.sl_order_map = {}
-        self._open_orders_done = False  # 新增
-        self.trade_history = []
+        self._open_orders_done = False
 
     def nextValidId(self, orderId):
         self.order_id = orderId
@@ -55,8 +51,6 @@ class IBApp(EWrapper, EClient):
         # 连接后自动拉取持仓和挂单
         self.reqOpenOrders()
         self.reqPositions()
-        # 拉取今日成交历史
-        self.reqExecutions(1, ExecutionFilter())
 
     def orderStatus(self, orderId, status, filled, remaining,
                     avgFillPrice, permId, parentId, lastFillPrice,
@@ -100,22 +94,8 @@ class IBApp(EWrapper, EClient):
             print(f"[IB] 错误 {errorCode}: {errorString}")
 
     def execDetails(self, reqId, contract, execution):
-        trade = {
-            "time":     execution.time,
-            "symbol":   contract.symbol,
-            "side":     execution.side,
-            "quantity": execution.shares,
-            "price":    execution.price,
-            "execId":   execution.execId,
-            "orderId":  execution.orderId,
-        }
-        self.trade_history.append(trade)
-        with open(TRADE_LOG, "a") as f:
-        f.write(json.dumps(trade) + "\n")
-        print(f"[成交] {trade['side']} {trade['quantity']} {trade['symbol']} @ {trade['price']} {trade['time']}")
-
-    def execDetailsEnd(self, reqId):
-        print(f"[成交历史] 共 {len(self.trade_history)} 笔")
+        print(f"[成交] {execution.side} {execution.shares} {contract.symbol} "
+              f"@ {execution.price} 时间:{execution.time}")
 
     def position(self, account, contract, position, avgCost):
         print(f"[持仓] {contract.symbol} {position}股 均价:{avgCost}")
@@ -278,16 +258,6 @@ def positions():
     app_ib.reqPositions()
     return jsonify({"open_positions": open_positions}), 200
 
-@flask_app.route('/trades', methods=['GET'])
-def trades():
-    history = []
-    if os.path.exists(TRADE_LOG):
-        with open(TRADE_LOG) as f:
-            history = [json.loads(line) for line in f if line.strip()]
-    return jsonify({
-        "count":  len(history),
-        "trades": history
-    }), 200
 
 if __name__ == '__main__':
     flask_app.run(host='0.0.0.0', port=5000)
