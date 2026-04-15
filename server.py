@@ -13,16 +13,6 @@ FUTURES_MAP = {
     "CL1!": {"symbol": "CL", "exchange": "NYMEX", "expiry": "202506", "tick": 0.01},
 }
 
-def execDetails(self, reqId, contract, execution):
-    print(f"[成交] {execution.side} {execution.shares} {contract.symbol} "
-          f"@ {execution.price} 时间:{execution.time}")
-
-def position(self, account, contract, position, avgCost):
-    print(f"[持仓] {contract.symbol} {position}股 均价:{avgCost}")
-
-def positionEnd(self):
-    print("[持仓] 查询完毕")
-
 def make_contract(symbol):
     contract = Contract()
     if symbol in FUTURES_MAP:
@@ -77,6 +67,16 @@ class IBApp(EWrapper, EClient):
     def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
         if errorCode not in [2104, 2106, 2158]:
             print(f"[IB] 错误 {errorCode}: {errorString}")
+
+    def execDetails(self, reqId, contract, execution):
+        print(f"[成交] {execution.side} {execution.shares} {contract.symbol} "
+              f"@ {execution.price} 时间:{execution.time}")
+
+    def position(self, account, contract, position, avgCost):
+        print(f"[持仓] {contract.symbol} {position}股 均价:{avgCost}")
+
+    def positionEnd(self):
+        print("[持仓] 查询完毕")
 
 
 app_ib = IBApp()
