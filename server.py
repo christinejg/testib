@@ -7,6 +7,9 @@ from ibapi.contract import Contract
 from ibapi.order import Order
 from ibapi.execution import ExecutionFilter
 
+# 追踪持仓：{ symbol: { "sl_order_id": int, "quantity": int } }
+open_positions = {}
+
 FUTURES_MAP = {
     "GC1!": {"symbol": "GC", "exchange": "COMEX", "expiry": "202508", "tick": 0.10},
     "ES1!": {"symbol": "ES", "exchange": "CME",   "expiry": "202506", "tick": 0.25},
@@ -148,8 +151,6 @@ for _ in range(20):
 if not app_ib.connected:
     print("[警告] IB Gateway 未连接")
 
-# 追踪持仓：{ symbol: { "sl_order_id": int, "quantity": int } }
-open_positions = {}
 
 flask_app = Flask(__name__)
 
