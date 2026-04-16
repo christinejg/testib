@@ -5,6 +5,7 @@ from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 from ibapi.order import Order
+from ibapi.execution import ExecutionFilter
 
 FUTURES_MAP = {
     "GC1!": {"symbol": "GC", "exchange": "COMEX", "expiry": "202508", "tick": 0.10},
@@ -54,7 +55,7 @@ class IBApp(EWrapper, EClient):
         # 启动时自动同步
         self.reqOpenOrders()
         self.reqPositions()
-        self.reqExecutions(orderId, self.ExecutionFilter())  # 拉取历史成交
+        self.reqExecutions(10001, ExecutionFilter())
 
     # ── 挂单同步（恢复止损单记录）─────────────────────────────
     def openOrder(self, orderId, contract, order, orderState):
